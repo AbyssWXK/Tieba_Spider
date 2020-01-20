@@ -42,15 +42,21 @@ class TiebaPipeline(object):
         spider.end_page = self.settings['END_PAGE']
         spider.filter = self.settings['FILTER']
         spider.see_lz = self.settings['SEE_LZ']
-        tbname = self.settings['TIEBA_NAME']
-        if not isinstance(tbname, bytes):
-            tbname = tbname.encode('utf8')
-        start_url = "http://tieba.baidu.com/f?kw=%s&pn=%d" \
-                %(quote(tbname), 50 * (begin_page - 1))
-        if self.settings['GOOD_ONLY']:
-            start_url += '&tab=good'
+        url_list = self.settings['URL_LIST']
+        if url_list:
+            urls = open(url_list, "r").read().split('\n')
+            spider.start_urls = list(filter(str.strip, urls))
+            spider.from_list = True
+        else:
+            tbname = self.settings['TIEBA_NAME']
+            if not isinstance(tbname, bytes):
+                tbname = tbname.encode('utf8')
+            start_url = "http://tieba.baidu.com/f?kw=%s&pn=%d" \
+                    %(quote(tbname), 50 * (begin_page - 1))
+            if self.settings['GOOD_ONLY']:
+                start_url += '&tab=good'
         
-        spider.start_urls = [start_url]
+            spider.start_urls = [start_url]
         
     def close_spider(self, spider):
         self.settings['SIMPLE_LOG'].log(spider.cur_page - 1)

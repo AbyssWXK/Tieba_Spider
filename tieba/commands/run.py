@@ -30,7 +30,10 @@ class Command(crawl.Command):
         parser.add_option("-f", "--filter", type="str", dest="filter", default="",
                           help='set function name in "filter.py" to filter threads')
         parser.add_option("-s", "--see_lz", action="store_true", dest="see_lz", default=False,
-                          help='enable "only see lz" mode')              
+                          help='enable "only see lz" mode')    
+
+        parser.add_option("-u", "--url_list", type="str", dest="url_list", default="",
+                          help='crawl from a list of urls instead of pages')      
                           
     def set_pages(self, pages):
         if len(pages) == 0:
@@ -56,6 +59,7 @@ class Command(crawl.Command):
             except:
                 raise UsageError("Invalid filter function name!")
         self.settings.set("FILTER", opts.filter)
+        self.settings.set("URL_LIST", opts.url_list)
         cfg = config.config()
         if len(args) >= 3:
             raise UsageError("Too many arguments!")

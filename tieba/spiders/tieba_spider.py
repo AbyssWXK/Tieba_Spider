@@ -5,6 +5,8 @@ import json
 from tieba.items import ThreadItem, PostItem, CommentItem
 from . import helper
 import time
+import re
+
 
 class TiebaSpider(scrapy.Spider):
     name = "tieba"
@@ -12,33 +14,52 @@ class TiebaSpider(scrapy.Spider):
     end_page = 9999
     filter = None
     see_lz = False
+    from_list = False
     
     def parse(self, response): #forum parser
-        for sel in response.xpath('//li[contains(@class, "j_thread_list")]'):
-            data = json.loads(sel.xpath('@data-field').extract_first())
+        if self.from_list:
+            #from scrapy.shell import inspect_response
+            #inspect_response(response, self)
             item = ThreadItem()
-            item['id'] = data['id']
-            item['author'] = data['author_name']
-            item['reply_num'] = data['reply_num']
-            item['good'] = data['is_good']
-            if not item['good']:
-                item['good'] = False
-            item['title'] = sel.xpath('.//div[contains(@class, "threadlist_title")]/a/@title').extract_first()
-            if self.filter and not self.filter(item["id"], item["title"], item['author'], item['reply_num'], item['good']):
-                continue
-            #filter过滤掉的帖子及其回复均不存入数据库
-                
-            yield item
-            meta = {'thread_id': data['id'], 'page': 1}
-            url = 'http://tieba.baidu.com/p/%d' % data['id']
+            regex = r'PageData.thread.*?author: \"(.*?)\".*?thread_id:(.*?),.*?title: \"(.*?)\".*?reply_num:(.*?),'
+            result = re.search(regex, response.text)
+            if not result:
+                return
+            item['author'], item['id'], item['title'], item['reply_num'] = result.groups();
+            item['good'] = "NULL" # No way to decide?
+            
+            meta = {'thread_id': int(item['id']), 'page': 1}
+            url = response.url
             if self.see_lz:
                 url += '?see_lz=1'
-            yield scrapy.Request(url, callback = self.parse_post,  meta = meta)
-        next_page = response.xpath('//a[@class="next pagination-item "]/@href')
-        self.cur_page += 1
-        if next_page:
-            if self.cur_page <= self.end_page:
-                yield self.make_requests_from_url('http:'+next_page.extract_first())
+            self.parse_post(response)
+        else:
+            print("Crawling from page %d..." % self.cur_page)
+            for sel in response.xpath('//li[contains(@class, "j_thread_list")]'):
+                data = json.loads(sel.xpath('@data-field').extract_first())
+                item = ThreadItem()
+                item['id'] = data['id']
+                item['author'] = data['author_name']
+                item['reply_num'] = data['reply_num']
+                item['good'] = data['is_good']
+                if not item['good']:
+                    item['good'] = False
+                item['title'] = sel.xpath('.//div[contains(@class, "threadlist_title")]/a/@title').extract_first()
+                if self.filter and not self.filter(item["id"], item["title"], item['author'], item['reply_num'], item['good']):
+                    continue
+                #filter过滤掉的帖子及其回复均不存入数据库
+                    
+                yield item
+                meta = {'thread_id': data['id'], 'page': 1}
+                url = 'http://tieba.baidu.com/p/%d' % data['id']
+                if self.see_lz:
+                    url += '?see_lz=1'
+                yield scrapy.Request(url, callback = self.parse_post,  meta = meta)
+            next_page = response.xpath('//a[@class="next pagination-item "]/@href')
+            self.cur_page += 1
+            if next_page:
+                if self.cur_page <= self.end_page:
+                    yield self.make_requests_from_url('http:'+next_page.extract_first())
             
     def parse_post(self, response): 
         meta = response.meta
